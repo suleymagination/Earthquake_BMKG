@@ -1,7 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import locale
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 def extract():
@@ -25,6 +25,7 @@ def extract():
         soup = BeautifulSoup(content.text, "html.parser")
         title = soup.find("title")
         print(title.string)
+
         date = soup.find("span", {"class": "waktu"})
         date_string = date.text
         # Remove the timezone abbreviation from the date string
@@ -58,16 +59,49 @@ def extract():
         date_format = "%d %B %Y, %H:%M:%S"
         date_object = datetime.strptime(date_string, date_format)
         timestamp = date_object.timestamp()
+        # Convert the timestamp to a datetime object in UTC timezone
+        date_object = datetime.utcfromtimestamp(timestamp)
+
+        # Add the UTC offset to get the date and time in UTC+07:00 timezone
+        date_object = date_object + timedelta(hours=7)
+
+        # Format the datetime object as a string
+        date_string = date_object.strftime('%Y-%m-%d %H:%M:%S')
         # print(soup.prettify())
 
+        # Find the magnitude element
+        magnitude = soup.find("span", {"class": "ic magnitude"})
+        # Get the magnitude value
+        magnitude = magnitude.next_sibling.strip()
+
+        # Find the other elements
+        depth_element = soup.find('span', {'class': 'ic kedalaman'})
+        geolocation_element = soup.find('span', {'class': 'ic koordinat'})
+        location_element = soup.find('span', {'class': 'ic lokasi'})
+        felt_element = soup.find('span', {'class': 'ic dirasakan'})
+
+        # Get the values
+        depth = depth_element.next_sibling.strip()
+        geolocation = geolocation_element.next_sibling.strip()
+        central_location = location_element.next_sibling.strip()
+        felt = felt_element.next_sibling.strip()
+
+        # Split the geolocation value into latitude and longitude
+        latitude, longitude = geolocation.split(' - ')
+        # Replace the Indonesian abbreviations with their English equivalents
+        latitude = latitude.replace('LU', 'N')
+        latitude = latitude.replace('LS', 'S')
+        longitude = longitude.replace('BT', 'E')
+        # Create a dictionary to store the geolocation data
+        geolocation = {'latitude': latitude, 'longitude': longitude}
+
         earthquake = dict()
-        earthquake["date"] = timestamp # "August 25, 2023"
-        earthquake["time"] = "18:42:23"
-        earthquake["magnitude"] = "4.0"
-        earthquake["depth"] = "3 km"
-        earthquake["geolocation"] = {"latitude": "4.52 N", "longitude": "96.45 E"}
-        earthquake["center"] = "The earthquake center is located on land 35 km northeast of Nagan Raya Regency"
-        earthquake["felt"] = "Felt (MMI Scale): II Nagan Raya"
+        earthquake["date"] = date_string # "August 25, 2023"
+        earthquake["magnitude"] = magnitude
+        earthquake["depth"] = depth
+        earthquake["geolocation"] = geolocation
+        earthquake["central_location"] = central_location
+        earthquake["felt"] = felt
         return earthquake
     else:
         return None
@@ -78,10 +112,9 @@ def show_data(data):
         print("Cannot find data")
         return
     print("Recent Earthquake in Indonesia")
-    print(f"Date: {data['date']}")
-    print(f"Time: {data['time']}")
+    print(f"Date and Time: {data['date']} (UTC+07:00)")
     print(f"Magnitude: {data['magnitude']}")
     print(f"Depth: {data['depth']}")
     print(f"Geolocation: Latitude= {data['geolocation']['latitude']}, Longitude= {data['geolocation']['longitude']}")
-    print(f"Center: {data['center']}")
+    print(f"Center: {data['central_location']}")
     print(data['felt'])
